@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Character Movement Example</title>
+    <style>
+        body { margin: 0; background-color: #f0f0f0; overflow: hidden; font-family: sans-serif; }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: #333;
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 5px 0;
+            z-index: 10;
+        }
+        #anim-list {
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Use <b>WASD</b> to walk, hold <b>Shift</b> to run.</div>
+    <div id="anim-list">Loading animations...</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, mixer, controls, model;
+        let idleAction, walkAction, runAction;
+        const clock = new THREE.Clock();
+
+        const keys = { w: false, a: false, s: false, d: false, shift: false };
+        const moveSpeed = { walk: 2, run: 5 };
+        const turnSpeed = 4;
+
+        init();
+
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xa0a0a0);
+            scene.fog = new THREE.Fog(0xa0a0a0, 10, 50);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(2, 2, 5);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Lights
+            scene.add(new THREE.AmbientLight(0xffffff, 2));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 3);
+            dirLight.position.set(3, 10, 10);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            // Ground
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshPhongMaterial({ color: 0xcbcbcb, depthWrite: false }));
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            scene.add(new THREE.GridHelper(100, 100, 0x000000, 0.2));
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 1, 0);
+
+            // Loader
+            const loader = new GLTFLoader();
+            loader.load('elderly+woman+3d+model.glb', (gltf) => {
+                model = gltf.scene;
+                scene.add(model);
+
+                model.traverse(o => { if (o.isMesh) o.castShadow = true; });
+
+                const animations = gltf.animations;
+                const animListDiv = document.getElementById('anim-list');
+
+                if (animations && animations.length > 0) {
+                    const names = animations.map((a, i) => `${i}: ${a.name}`).join('<br>');
+                    animListDiv.innerHTML = `<b>Available Animations:</b><br>${names}`;
+                    console.log('Available Animations:', animations.map(a => a.name));
+
+                    mixer = new THREE.AnimationMixer(model);
+                    
+                    // Swapping based on user observation:
+                    // Starting in walking -> index 0 is Walk
+                    // Moving goes to idle -> index 2 is Idle
+                    // We'll map them correctly now:
+                    
+                    const idleClip = animations.find(a => a.name.toLowerCase().includes('idle')) || animations[0];
+                    const walkClip = animations.find(a => a.name.toLowerCase().includes('walk')) || animations[2] || animations[1];
+                    const runClip = animations.find(a => a.name.toLowerCase().includes('run')) || animations[1];
+
+                    if (idleClip) {
+                        idleAction = mixer.clipAction(idleClip);
+                        idleAction.play();
+                        idleAction.setEffectiveWeight(1);
+                    }
+                    if (walkClip) {
+                        walkAction = mixer.clipAction(walkClip);
+                        walkAction.play();
+                        walkAction.setEffectiveWeight(0);
+                    }
+                    if (runClip) {
+                        runAction = mixer.clipAction(runClip);
+                        runAction.play();
+                        runAction.setEffectiveWeight(0);
+                    }
+                } else {
+                    animListDiv.innerHTML = 'No animations found in GLB.';
+                }
+
+                animate();
+            }, undefined, (error) => {
+                console.error(error);
+                document.getElementById('info').innerText = 'Error loading model.';
+            });
+
+            window.addEventListener('keydown', (e) => handleKey(e.code, true));
+            window.addEventListener('keyup', (e) => handleKey(e.code, false));
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function handleKey(code, isDown) {
+            if (code === 'KeyW') keys.w = isDown;
+            if (code === 'KeyA') keys.a = isDown;
+            if (code === 'KeyS') keys.s = isDown;
+            if (code === 'KeyD') keys.d = isDown;
+            if (code === 'ShiftLeft' || code === 'ShiftRight') keys.shift = isDown;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function updateMovement(delta) {
+            if (!model) return;
+
+            const isMoving = keys.w || keys.s || keys.a || keys.d;
+            
+            // Animation Blending
+            let targetAction = idleAction;
+            if (isMoving) {
+                targetAction = keys.shift ? (runAction || walkAction) : walkAction;
+            }
+
+            // Smoothly transition between Idle, Walk, and Run
+            [idleAction, walkAction, runAction].forEach(action => {
+                if (action) {
+                    const weight = (action === targetAction) ? 1 : 0;
+                    const currentWeight = action.getEffectiveWeight();
+                    const newWeight = THREE.MathUtils.lerp(currentWeight, weight, delta * 10);
+                    action.setEffectiveWeight(newWeight);
+                }
+            });
+
+            if (isMoving) {
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+
+                const right = new THREE.Vector3().crossVectors(forward, camera.up);
+
+                let direction = new THREE.Vector3();
+                if (keys.w) direction.add(forward);
+                if (keys.s) direction.sub(forward);
+                if (keys.a) direction.sub(right);
+                if (keys.d) direction.add(right);
+                direction.normalize();
+
+                const targetAngle = Math.atan2(direction.x, direction.z) - Math.PI / 2;
+                const targetQuaternion = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetAngle);
+                model.quaternion.slerp(targetQuaternion, delta * 10);
+
+                const speed = keys.shift ? moveSpeed.run : moveSpeed.walk;
+                model.position.addScaledVector(direction, speed * delta);
+            }
+
+            const targetPos = model.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+            const offset = camera.position.clone().sub(controls.target);
+            controls.target.copy(targetPos);
+            camera.position.copy(targetPos.clone().add(offset));
+
+            controls.update();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            if (mixer) mixer.update(delta);
+            updateMovement(delta);
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>

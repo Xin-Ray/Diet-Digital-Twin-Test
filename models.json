@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Elderly Woman - Model 1",
+    "path": "models/realistic-3d-elderly-woman/tripo_convert_12ecf8d2-4953-48ab-a31d-262da110cac1.fbx"
+  },
+  {
+    "name": "Elderly Woman - Model 2",
+    "path": "models/elderly+woman+3d+model/tripo_convert_c456f19a-28d6-4b39-9511-7c44c5ec433d.fbx"
+  },
+  {
+    "name": "Elderly Woman - GLB",
+    "path": "models/elderly+woman+3d+model.glb",
+    "animationMap": {
+      "idle": 0,
+      "run": 1,
+      "walk": 2
+    }
+  }
+]

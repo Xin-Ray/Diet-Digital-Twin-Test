@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Digital Twin Dashboard</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #010307; color: white; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        
+        #page-header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            text-align: center;
+            pointer-events: none;
+        }
+        #page-header h3 {
+            margin: 0;
+            font-size: .5em;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            color: #80bfff;
+            text-shadow: 0 0 20px rgba(128, 191, 255, 0.5);
+            font-weight: 300;
+        }
+
+        /* Dashboard Common Styles */
+        .glass-panel {
+            background: rgba(2, 6, 12, 0.98);
+            border: 1px solid #162a44;
+            backdrop-filter: blur(25px);
+            border-radius: 12px;
+            z-index: 10;
+            overflow: hidden;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.9);
+        }
+
+        #dashboard {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+        }
+
+        #ahei-dashboard {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 150px);
+        }
+
+        .tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid #162a44;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            color: #8fa6bc;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .tab-btn.active {
+            color: #80bfff;
+            background: rgba(128, 191, 255, 0.08);
+            border-bottom: 2px solid #80bfff;
+        }
+        .tab-content {
+            padding: 20px;
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        .feature { margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 0.95em; }
+        .feature label { font-weight: 500; color: #8fa6bc; }
+        .feature span { color: #fff; text-align: right; }
+        
+        .section-title {
+            font-size: 0.8em;
+            color: #80bfff;
+            text-transform: uppercase;
+            margin: 15px 0 10px 0;
+            letter-spacing: 1.5px;
+            border-bottom: 1px solid rgba(128, 191, 255, 0.2);
+            padding-bottom: 5px;
+        }
+
+        /* AHEI Specific Styles */
+        .ahei-content { padding: 20px; overflow-y: auto; flex-grow: 1; }
+        .ahei-input-group { margin-bottom: 8px; }
+        .ahei-input-group label { display: block; font-size: 0.85em; color: #8fa6bc; margin-bottom: 4px; }
+        .ahei-input-group input { 
+            width: 100%; 
+            background: #010307; 
+            border: 1px solid #162a44; 
+            color: #fff; 
+            padding: 6px 10px; 
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .ahei-footer {
+            padding: 15px;
+            background: rgba(0,0,0,0.6);
+            border-top: 1px solid #162a44;
+        }
+        .history-row {
+            font-size: 0.85em;
+            color: #8fa6bc;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 4px;
+            min-height: 20px;
+        }
+        .apply-btn {
+            width: 100%;
+            padding: 10px;
+            background: #061221;
+            color: #fff;
+            border: 1px solid #1e3a5f;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .apply-btn:hover { background: #0a1a2f; border-color: #3399ff; box-shadow: 0 0 12px rgba(51, 153, 255, 0.3); }
+
+        /* Sub-tabs styling */
+        .sub-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .sub-tab-btn {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid #162a44;
+            color: #8fa6bc;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .sub-tab-btn.active {
+            background: #061221;
+            color: #fff;
+            border-color: #1e3a5f;
+        }
+        .val-up { color: #4ade80 !important; }
+        .val-down { color: #f87171 !important; }
+        .val-neutral { color: #fff !important; }
+
+        #controls-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(2, 6, 12, 0.85);
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            border: 1px solid #162a44;
+        }
+        #loading-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #010307;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #80bfff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="page-header">
+        <h3>Digital Twin Dashboard</h3>
+    </div>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p id="loading-text">Loading Digital Environment...</p>
+    </div>
+
+    <div id="canvas-container"></div>
+    
+    <!-- Left Dashboard: AHEI Scores -->
+    <div id="ahei-dashboard" class="glass-panel">
+        <div class="tabs">
+            <div class="tab-btn active" style="cursor: default;">AHEI 2005 Score</div>
+        </div>
+        <div class="ahei-content">
+            <div class="ahei-input-group">
+                <label>Vegetables (excl. potatoes)</label>
+                <input type="number" class="ahei-input" data-component="veg" placeholder="0-10" min="0" max="10" step="0.1">
+            </div>
+            <div class="ahei-input-group">
+                <label>Fruit</label>
+                <input type="number" class="ahei-input" data-component="fruit" placeholder="0-10" min="0" max="10" step="0.1">
+            </div>
+            <div class="ahei-input-group">
+                <label>Nuts and Legumes</label>
+                <input type="number" class="ahei-input" data-component="nuts" placeholder="0-10" min="0" max="10" step="0.1">
+            </div>
+            <div class="ahei-input-group">
+                <label>White:Red Meat Ratio</label>
+                <input type="number" class="ahei-input" data-component="meat" placeholder="0-10" min="0" max="10" step="0.1">
+            </div>
+            <div class="ahei-input-group">
+                <label>Cereal Fiber</label>
+                <input type="number" class="ahei-input" data-component="fiber" placeholder="0-10" min="0" max="10" step="0.1">
+            </div>
+            <div class="ahei-input-group">
+                <label>Trans Fat</label>
+                <input type="number" class="ahei-input" data-component="trans" placeholder="0-10" min="0" max="10" step="0.1">
+            </div>
+            <div class="ahei-input-group">
+                <label>PUFA:SFA Ratio</label>
+                <input type="number" class="ahei-input" data-component="pufa" placeholder="0-10" min="0" max="10" step="0.1">
+            </div>
+            <div class="ahei-input-group">
+                <label>Multivitamin (0 or 10)</label>
+                <input type="number" class="ahei-input" data-component="multi" placeholder="0 or 10" min="0" max="10" step="10">
+            </div>
+            <div class="ahei-input-group">
+                <label>Alcohol</label>
+                <input type="number" class="ahei-input" data-component="alcohol" placeholder="0-10" min="0" max="10" step="0.1">
+            </div>
+        </div>
+        <div class="ahei-footer">
+            <div class="history-row" id="ahei-history">
+                Applying to: <span id="target-age">72</span> years
+            </div>
+            <button class="apply-btn" onclick="applyAHEI()">Apply Score</button>
+        </div>
+    </div>
+
+    <!-- Right Dashboard -->
+    <div id="dashboard" class="glass-panel">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab(this, 'tab-bio')">Character</button>
+            <button class="tab-btn" onclick="showTab(this, 'tab-current')">3D Data</button>
+        </div>
+
+        <!-- Tab 1: Bio-markers and Chronic Conditions -->
+        <div id="tab-bio" class="tab-content active">
+            <div class="sub-tabs" id="history-tabs">
+                <button class="sub-tab-btn active" onclick="updateDisplay(0)">Base (72)</button>
+            </div>
+
+            <div id="history-content">
+                <div class="section-title">Identity</div>
+                <div class="feature"><label>Name:</label> <span>Elderly Woman</span></div>
+                <div class="feature"><label>Age:</label> <span><span id="display-age">72</span> Years</span></div>
+                
+                <div class="section-title">Biomarkers</div>
+                <div class="feature">
+                    <label>Height:</label> 
+                    <span id="display-height" class="val-neutral">165.0 cm</span>
+                </div>
+                <div class="feature">
+                    <label>Weight:</label> 
+                    <span id="display-weight" class="val-neutral">68.0 kg</span>
+                </div>
+                <div class="feature">
+                    <label>BMI:</label> 
+                    <span id="display-bmi" class="val-neutral">25.0</span>
+                </div>
+                
+                <div class="section-title">Chronic Conditions</div>
+                <div class="feature"><label>Diabetes:</label> <span id="display-diabetes">Type 2</span></div>
+                <div class="feature"><label>Depression:</label> <span id="display-depression">12/30</span></div>
+                <div class="feature"><label>Cardiovascular:</label> <span id="display-cardio">Hypertension</span></div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Real-time Values and Animation -->
+        <div id="tab-current" class="tab-content">
+            <div class="section-title">Real-time Metrics</div>
+            <div class="feature"><label>Status:</label> <span id="status">Stationary</span></div>
+            <div class="feature"><label>Step Count:</label> <span id="steps">0</span></div>
+            <div class="feature"><label>Pos X:</label> <span id="pos-x">0.00</span></div>
+            <div class="feature"><label>Pos Z:</label> <span id="pos-z">0.00</span></div>
+            <div class="feature"><label>Rot Y:</label> <span id="rot-y">0.00</span></div>
+            
+            <div class="section-title">Animation Control</div>
+            <div class="feature" style="flex-direction: column; align-items: flex-start; margin-top: 5px;">
+                <select id="animation-select" style="width: 100%; background: #010307; color: #80bfff; border: 1px solid #162a44; padding: 8px; border-radius: 4px; font-family: inherit;">
+                    <option value="none">None (Static Pose)</option>
+                </select>
+                <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 0.85em; color: #8fa6bc;">
+                    <input type="checkbox" id="skeleton-toggle" style="margin: 0;">
+                    <label for="skeleton-toggle" style="cursor: pointer;">Show Skeleton</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentAge = 72;
+        let history = [
+            {
+                age: 72,
+                height: 165.0,
+                weight: 68.0,
+                bmi: 25.0,
+                diabetes: 'Type 2',
+                depression: '12/30',
+                cardio: 'Hypertension',
+                ahei: 0
+            }
+        ];
+
+        function showTab(btn, tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        function updateDisplay(index) {
+            const data = history[index];
+            const prev = index > 0 ? history[index-1] : null;
+
+            document.getElementById('display-age').innerText = data.age;
+            
+            const setColor = (elId, val, prevVal, higherIsBetter) => {
+                const el = document.getElementById(elId);
+                let suffix = '';
+                if (elId.includes('height')) suffix = ' cm';
+                else if (elId.includes('weight')) suffix = ' kg';
+                
+                el.innerText = typeof val === 'number' ? val.toFixed(1) + suffix : val;
+                
+                if (!prevVal) {
+                    el.className = 'val-neutral';
+                    return;
+                }
+                if (Math.abs(val - prevVal) < 0.01) el.className = 'val-neutral';
+                else if (val > prevVal) el.className = higherIsBetter ? 'val-up' : 'val-down';
+                else el.className = higherIsBetter ? 'val-down' : 'val-up';
+            };
+
+            setColor('display-height', data.height, prev ? prev.height : null, true);
+            setColor('display-weight', data.weight, prev ? prev.weight : null, false);
+            setColor('display-bmi', data.bmi, prev ? prev.bmi : null, false);
+            
+            document.getElementById('display-diabetes').innerText = data.diabetes;
+            document.getElementById('display-depression').innerText = data.depression;
+            document.getElementById('display-cardio').innerText = data.cardio;
+
+            document.querySelectorAll('.sub-tab-btn').forEach((btn, i) => {
+                btn.className = i === index ? 'sub-tab-btn active' : 'sub-tab-btn';
+            });
+        }
+
+        function applyAHEI() {
+            if (history.length >= 6) {
+                alert("Maximum 5 history sub-tabs reached.");
+                return;
+            }
+
+            const inputs = document.querySelectorAll('.ahei-input');
+            let totalAHEI = 0;
+            inputs.forEach(i => totalAHEI += parseFloat(i.value || 0));
+
+            currentAge += 1;
+            const prev = history[history.length - 1];
+            
+            const weightChange = (Math.random() * 1.5 - 0.5) + (totalAHEI > 50 ? -0.4 : 0.4);
+            const heightChange = -0.05 * Math.random();
+            
+            const newWeight = prev.weight + weightChange;
+            const newHeight = prev.height + heightChange;
+
+            const newEntry = {
+                age: currentAge,
+                height: newHeight,
+                weight: newWeight,
+                bmi: newWeight / Math.pow(newHeight/100, 2),
+                diabetes: prev.diabetes,
+                depression: Math.floor(10 + Math.random() * 5) + '/30',
+                cardio: prev.cardio,
+                ahei: totalAHEI
+            };
+
+            history.push(newEntry);
+            
+            const container = document.getElementById('history-tabs');
+            container.innerHTML = history.map((h, i) => 
+                `<button class="sub-tab-btn ${i === history.length-1 ? 'active' : ''}" onclick="updateDisplay(${i})">${i === 0 ? 'Base' : 'Age ' + h.age}</button>`
+            ).join('');
+
+            updateDisplay(history.length - 1);
+            document.getElementById('target-age').innerText = currentAge + 1;
+            
+            const historyText = document.getElementById('ahei-history');
+            historyText.innerHTML = `Applied to age ${currentAge}. Score: ${totalAHEI.toFixed(1)}`;
+        }
+    </script>
+
+    <div id="controls-info">
+        <strong>Controls:</strong><br>
+        WASD / Arrows: Move & Rotate<br>
+        Mouse Drag: Orbit Camera<br>
+        Mouse Wheel: Zoom
+    </div>
+
+    <div id="model-selector-panel" class="glass-panel" style="position: absolute; bottom: 20px; right: 20px; padding: 15px; width: 250px;">
+        <div class="section-title" style="margin-top: 0;">Character Model</div>
+        <select id="model-select" style="width: 100%; background: #010307; color: #80bfff; border: 1px solid #162a44; padding: 8px; border-radius: 4px; font-family: inherit;">
+            <option value="">Searching for models...</option>
+        </select>
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px; font-size: 0.85em; color: #8fa6bc;">
+            <input type="checkbox" id="hologram-toggle" style="margin: 0; cursor: pointer;">
+            <label for="hologram-toggle" style="cursor: pointer;">Holographic Mode</label>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./three.module.js",
+            "three/addons/": "./",
+            "fflate": "./libs/fflate.module.js"
+        }
+    }
+    </script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
