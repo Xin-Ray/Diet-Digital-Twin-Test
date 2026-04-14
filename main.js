@@ -3,7 +3,17 @@ import { FBXLoader } from 'three/addons/FBXLoader.js';
 import { GLTFLoader } from 'three/addons/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { LookingGlassWebXRPolyfill, LookingGlassConfig } from '@lookingglass/webxr';
 import * as fflate from 'fflate';
+
+const lookingGlassConfig = LookingGlassConfig;
+lookingGlassConfig.targetX = 500;
+lookingGlassConfig.targetY = 120;
+lookingGlassConfig.targetZ = 480;
+lookingGlassConfig.targetDiam = 600;
+lookingGlassConfig.fovy = (40 * Math.PI) / 180;
+new LookingGlassWebXRPolyfill();
 
 // --- Scene Setup ---
 const scene = new THREE.Scene();
@@ -22,7 +32,9 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.LinearToneMapping;
 renderer.toneMappingExposure = 1.6;
+renderer.xr.enabled = true;
 document.getElementById('canvas-container').appendChild(renderer.domElement);
+document.body.appendChild(VRButton.createButton(renderer));
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -540,11 +552,13 @@ function update() {
 }
 
 function animate() {
-    requestAnimationFrame(animate);
     update();
     if (character) {
         const targetPos = new THREE.Vector3(character.position.x, character.position.y + 120, character.position.z);
         controls.target.lerp(targetPos, 0.1);
+        lookingGlassConfig.targetX = controls.target.x;
+        lookingGlassConfig.targetY = controls.target.y;
+        lookingGlassConfig.targetZ = controls.target.z;
     }
     controls.update();
     renderer.render(scene, camera);
@@ -554,4 +568,4 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
-animate();
+renderer.setAnimationLoop(animate);
